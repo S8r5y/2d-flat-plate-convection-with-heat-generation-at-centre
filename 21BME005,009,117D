@@ -1,0 +1,85 @@
+% Parameters
+L = 1;          % Length of plate
+W = 0.1;        % Width of plate
+U_infty = 0.1;  % Free stream velocity
+T_plate = 100;  % Temperature of the heated plate
+T_infty = 20;   % Temperature of the surrounding fluid
+k = 0.1;        % Thermal conductivity
+h = 0.01;       % Convective heat transfer coefficient
+Q_gen = 1000;   % Heat generation rate
+
+% Grid parameters
+Nx = 20;         % Number of grid points in x-direction
+Ny = 10;         % Number of grid points in y-direction
+dx = L / Nx;     % Grid spacing in x-direction
+dy = W / Ny;     % Grid spacing in y-direction
+
+% Time parameters
+dt = 0.1;        % Time step
+t_end = 100;     % End time
+Nt = round(t_end / dt); % Number of time steps
+
+% Thermal properties
+rho = 1000;         % Density (kg/m^3)
+cp = 4186;          % Specific heat capacity (J/kg*K)
+alpha = k / (rho * cp); % Thermal diffusivity
+
+% Initialize temperature array
+T = T_infty * ones(Nx+1, Ny+1);
+
+% Circular hole parameters
+radius = 0.2; % Radius of the hole
+center_x = L / 2; % x-coordinate of the center of the hole
+center_y = W / 2; % y-coordinate of the center of the hole
+
+% Location of heat generation (boundary of the hole)
+theta = linspace(0, 2*pi, 100); % Angles for points around the hole
+hole_boundary_x = center_x + radius * cos(theta); % x-coordinates of points around the hole
+hole_boundary_y = center_y + radius * sin(theta); % y-coordinates of points around the hole
+
+% Main time loop
+for n = 1:Nt
+    % Copy temperature array for the next time step
+    T_new = T;
+    
+    % Compute temperature distribution using explicit finite difference method
+    for i = 2:Nx
+        for j = 2:Ny
+            % Compute Laplacian using central differences
+            laplacian_T = (T(i+1,j) - 2*T(i,j) + T(i-1,j)) / dx^2 + (T(i,j+1) - 2*T(i,j) + T(i,j-1)) / dy^2;
+            
+            % Compute advection term
+            adv_T = -U_infty * ((T(i,j) - T(i-1,j)) / dx);
+            
+            % Heat generation term
+            if inpolygon(i*dx, j*dy, hole_boundary_x, hole_boundary_y)
+                Q_gen_term = Q_gen / (rho * cp);
+            else
+                Q_gen_term = 0;
+            end
+            
+            % Update temperature
+            T_new(i, j) = T(i, j) + dt * (alpha * laplacian_T + adv_T + Q_gen_term);
+        end
+    end
+    
+    % Update temperature array for the next time step
+    T = T_new;
+    
+    % Apply Dirichlet boundary conditions
+    T(1,:) = T_plate;     % Left boundary
+    T(Nx+1,:) = T_infty;  % Right boundary
+    T(:,1) = T_infty;     % Bottom boundary
+    T(:,Ny+1) = T_infty;  % Top boundary
+end
+
+% Plot temperature distribution
+[X, Y] = meshgrid(0:dx:L, 0:dy:W);
+contourf(X, Y, T', 'LineColor', 'none');
+colorbar;
+xlabel('X');
+ylabel('Y');
+title('Temperature Distribution (2D Heat Transfer with Convection and Circular Hole)');
+hold on;
+plot(hole_boundary_x, hole_boundary_y, 'r', 'LineWidth', 2); % Plot the circular hole boundary
+hold off;
